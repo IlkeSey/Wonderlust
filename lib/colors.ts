@@ -1,17 +1,16 @@
-/** Wheel slice palette — cycles when there are more podcasts than colors. */
 export const WHEEL_COLORS = [
-  "#8b5cf6",
-  "#3b82f6",
-  "#ec4899",
-  "#06b6d4",
-  "#f59e0b",
-  "#10b981",
-  "#ef4444",
-  "#a855f7",
-  "#0ea5e9",
-  "#f97316",
-  "#14b8a6",
-  "#e11d48",
+  "#b48ead", // dusty rose
+  "#a3be8c", // sage
+  "#d08770", // warm coral
+  "#ebcb8b", // soft amber
+  "#81a1c1", // slate blue
+  "#88c0d0", // muted teal
+  "#bf616a", // muted berry
+  "#c9a5e0", // lavender
+  "#8fbcbb", // eucalyptus
+  "#d4956a", // terracotta
+  "#a0c4a8", // mint
+  "#c2869a", // mauve
 ];
 
 export function sliceColor(index: number): string {

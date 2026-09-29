@@ -4,11 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { sliceColor } from "@/lib/colors";
 import type { Podcast } from "@/types/podcast";
 
-const SIZE = 440; // logical canvas size in px
+const SIZE = 400;
 const SPIN_MS = 3000;
 const MIN_TURNS = 5;
 const TAU = Math.PI * 2;
-const POINTER_ANGLE = -Math.PI / 2; // pointer sits at the top of the wheel
+const POINTER_ANGLE = -Math.PI / 2;
 
 type Props = {
   podcasts: Podcast[];
@@ -17,7 +17,6 @@ type Props = {
 };
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-
 const normalize = (angle: number) => ((angle % TAU) + TAU) % TAU;
 
 function truncate(text: string, max: number) {
@@ -46,25 +45,22 @@ export default function SpinningWheel({ podcasts, onResult, onSpinStart }: Props
 
     const cx = SIZE / 2;
     const cy = SIZE / 2;
-    const radius = SIZE / 2 - 14;
+    const radius = SIZE / 2 - 18;
     const count = podcasts.length;
-
-    // Outer ring
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius + 8, 0, TAU);
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    ctx.fill();
 
     if (count === 0) {
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, TAU);
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.fillStyle = "rgba(255,255,255,0.04)";
       ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "600 16px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.font = '500 14px "DM Sans", system-ui, sans-serif';
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Add podcasts in /admin", cx, cy);
+      ctx.fillText("Add podcasts to get started", cx, cy);
       drawPointer(ctx, cx, cy, radius);
       return;
     }
@@ -82,35 +78,39 @@ export default function SpinningWheel({ podcasts, onResult, onSpinStart }: Props
       ctx.closePath();
       ctx.fillStyle = sliceColor(i);
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(0,0,0,0.15)";
       ctx.stroke();
 
-      // Slice label, laid along the radius
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(start + arc / 2);
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#ffffff";
-      const fontSize = count > 12 ? 11 : count > 8 ? 13 : 15;
-      ctx.font = `600 ${fontSize}px system-ui, -apple-system, Segoe UI, sans-serif`;
-      ctx.shadowColor = "rgba(0,0,0,0.45)";
-      ctx.shadowBlur = 4;
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      const fontSize = count > 12 ? 10 : count > 8 ? 12 : 13;
+      ctx.font = `700 ${fontSize}px "DM Sans", system-ui, sans-serif`;
       const maxChars = count > 12 ? 14 : count > 8 ? 18 : 22;
-      ctx.fillText(truncate(podcasts[i].title, maxChars), radius - 18, 0);
+      ctx.fillText(truncate(podcasts[i].title, maxChars), radius - 16, 0);
       ctx.restore();
     }
 
     // Hub
     ctx.beginPath();
-    ctx.arc(cx, cy, 34, 0, TAU);
-    ctx.fillStyle = "#ffffff";
+    ctx.arc(cx, cy, 28, 0, TAU);
+    ctx.fillStyle = "#1a1625";
     ctx.fill();
-    ctx.fillStyle = "#6d28d9";
-    ctx.font = "700 13px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 27, 0, TAU);
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = '700 10px "DM Sans", system-ui, sans-serif';
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    ctx.letterSpacing = "1px";
     ctx.fillText("SPIN", cx, cy);
 
     drawPointer(ctx, cx, cy, radius);
@@ -120,7 +120,6 @@ export default function SpinningWheel({ podcasts, onResult, onSpinStart }: Props
     draw();
   }, [draw]);
 
-  // Redraw on DPR / resize changes so the canvas stays crisp.
   useEffect(() => {
     const onResize = () => draw();
     window.addEventListener("resize", onResize);
@@ -142,7 +141,6 @@ export default function SpinningWheel({ podcasts, onResult, onSpinStart }: Props
 
     const arc = TAU / count;
     const winner = Math.floor(Math.random() * count);
-    // Land anywhere inside the winning slice (but safely away from its edges).
     const jitter = (Math.random() - 0.5) * arc * 0.7;
     const winnerCenter = winner * arc + arc / 2 + jitter;
 
@@ -176,15 +174,15 @@ export default function SpinningWheel({ podcasts, onResult, onSpinStart }: Props
   const disabled = spinning || podcasts.length === 0;
 
   return (
-    <div className="flex w-full flex-col items-center gap-6">
-      <div className="w-full max-w-[440px]">
+    <div className="flex w-full flex-col items-center gap-5">
+      <div className="w-full" style={{ maxWidth: 380 }}>
         <canvas
           ref={canvasRef}
           role="img"
           aria-label={`Wheel with ${podcasts.length} podcasts`}
           onClick={spin}
           style={{ width: "100%", height: "auto", aspectRatio: "1 / 1" }}
-          className={`drop-shadow-2xl ${disabled ? "cursor-default" : "cursor-pointer"}`}
+          className={disabled ? "cursor-default" : "cursor-pointer"}
         />
       </div>
 
@@ -192,7 +190,8 @@ export default function SpinningWheel({ podcasts, onResult, onSpinStart }: Props
         type="button"
         onClick={spin}
         disabled={disabled}
-        className="btn-primary w-full max-w-xs px-8 py-3 text-base"
+        className="btn-primary w-full py-3 text-sm font-bold"
+        style={{ maxWidth: 260, borderRadius: 12 }}
       >
         {spinning ? "Spinning…" : podcasts.length === 0 ? "No podcasts yet" : "Spin the wheel"}
       </button>
@@ -206,16 +205,16 @@ function drawPointer(
   cy: number,
   radius: number
 ) {
-  const tipY = cy - radius + 4;
+  const tipY = cy - radius + 2;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(cx, tipY);
-  ctx.lineTo(cx - 15, tipY - 26);
-  ctx.lineTo(cx + 15, tipY - 26);
+  ctx.lineTo(cx - 11, tipY - 20);
+  ctx.lineTo(cx + 11, tipY - 20);
   ctx.closePath();
-  ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "rgba(0,0,0,0.4)";
-  ctx.shadowBlur = 6;
+  ctx.fillStyle = "#ede9f4";
+  ctx.shadowColor = "rgba(0,0,0,0.3)";
+  ctx.shadowBlur = 4;
   ctx.fill();
   ctx.restore();
 }

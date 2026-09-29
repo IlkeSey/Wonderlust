@@ -1,236 +1,335 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { Podcast, PodcastInput } from "@/types/podcast";
+import type { Podcast } from "@/types/podcast";
+import { THEMES } from "@/types/podcast";
 
-// -------------------------------------------------------------------
-// API helpers
-// -------------------------------------------------------------------
+type FormState = {
+  title: string;
+  description: string;
+  url: string;
+  theme: string;
+};
 
-async function fetchPodcasts(): Promise<Podcast[]> {
-  const res = await fetch("/api/podcasts", { cache: "no-store" });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.error ?? "Failed to fetch.");
-  return body.podcasts ?? [];
-}
-
-async function createPodcast(data: PodcastInput): Promise<Podcast> {
-  const res = await fetch("/api/podcasts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.error ?? "Failed to create.");
-  return body.podcast;
-}
-
-async function updatePodcast(id: string, data: PodcastInput): Promise<Podcast> {
-  const res = await fetch("/api/podcasts", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, ...data }),
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.error ?? "Failed to update.");
-  return body.podcast;
-}
-
-async function deletePodcast(id: string): Promise<void> {
-  const res = await fetch(`/api/podcasts?id=${id}`, { method: "DELETE" });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.error ?? "Failed to delete.");
-}
-
-// -------------------------------------------------------------------
-// Component
-// -------------------------------------------------------------------
+const emptyForm: FormState = { title: "", description: "", url: "", theme: "" };
 
 export default function AdminPage() {
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterTheme, setFilterTheme] = useState<string>("");
 
-  // Form fields
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [url, setUrl] = useState("");
+  const flash = useCallback((msg: string) => {
+    setSuccess(msg);
+    setTimeout(() => setSuccess(null), 3000);
+  }, []);
 
-  const load = useCallback(async () => {
+  const fetchPodcasts = useCallback(async () => {
     try {
-      const data = await fetchPodcasts();
-      setPodcasts(data);
+      const res = await fetch("/api/podcasts", { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "Failed to load.");
+      setPodcasts(body.podcasts ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load podcasts.");
+      setError(err instanceof Error ? err.message : "Failed to load.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    fetchPodcasts();
+  }, [fetchPodcasts]);
 
-  function resetForm() {
-    setTitle("");
-    setDescription("");
-    setUrl("");
-    setEditing(null);
-  }
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  };
 
-  function startEdit(p: Podcast) {
-    setEditing(p.id);
-    setTitle(p.title);
-    setDescription(p.description ?? "");
-    setUrl(p.url ?? "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    setBusy(true);
+    if (!form.title.trim()) return;
+    setSaving(true);
     setError(null);
-    try {
-      if (editing) {
-        await updatePodcast(editing, { title, description, url });
-      } else {
-        await createPodcast({ title, description, url });
-      }
-      resetForm();
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this podcast?")) return;
-    setBusy(true);
-    setError(null);
     try {
-      await deletePodcast(id);
-      if (editing === id) resetForm();
-      await load();
+      const method = editingId ? "PUT" : "POST";
+      const payload: Record<string, string> = {
+        title: form.title,
+        description: form.description,
+        url: form.url,
+        theme: form.theme,
+      };
+      if (editingId) payload.id = editingId;
+
+      const res = await fetch("/api/podcasts", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "Save failed.");
+
+      setForm(emptyForm);
+      setEditingId(null);
+      flash(editingId ? "Podcast updated." : "Podcast added.");
+      await fetchPodcasts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete.");
+      setError(err instanceof Error ? err.message : "Save failed.");
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
-  }
+  };
+
+  const startEdit = (p: Podcast) => {
+    setEditingId(p.id);
+    setForm({
+      title: p.title,
+      description: p.description ?? "",
+      url: p.url ?? "",
+      theme: p.theme ?? "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this podcast?")) return;
+    try {
+      const res = await fetch(`/api/podcasts?id=${id}`, { method: "DELETE" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error ?? "Delete failed.");
+      flash("Podcast deleted.");
+      if (editingId === id) cancelEdit();
+      await fetchPodcasts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed.");
+    }
+  };
+
+  const usedThemes = [...new Set(podcasts.map((p) => p.theme).filter(Boolean))] as string[];
+  const filtered = filterTheme
+    ? podcasts.filter((p) => p.theme === filterTheme)
+    : podcasts;
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Admin Panel</h1>
+    <div className="mx-auto max-w-lg space-y-8">
+      <div>
+        <h1
+          className="text-2xl font-bold sm:text-3xl"
+          style={{ letterSpacing: "-0.02em" }}
+        >
+          {editingId ? "Edit podcast" : "Add a podcast"}
+        </h1>
+        <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+          {editingId
+            ? "Update the details below."
+            : "Fill in the details and pick a theme."}
+        </p>
+      </div>
 
-      {/* ---- Form ---- */}
+      {success && (
+        <div
+          className="animate-fade-up rounded-lg px-4 py-2.5 text-sm"
+          style={{
+            background: "rgba(163, 190, 140, 0.12)",
+            border: "1px solid rgba(163, 190, 140, 0.2)",
+            color: "#a3be8c",
+          }}
+        >
+          {success}
+        </div>
+      )}
+      {error && (
+        <div
+          className="rounded-lg px-4 py-2.5 text-sm"
+          style={{
+            background: "rgba(239, 68, 68, 0.08)",
+            border: "1px solid rgba(239, 68, 68, 0.15)",
+            color: "#f87171",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="card space-y-4">
-        <h2 className="font-semibold">
-          {editing ? "Edit podcast" : "Add a podcast"}
-        </h2>
-
         <div>
-          <label htmlFor="title" className="label">Title</label>
+          <label htmlFor="title" className="label">
+            Title
+          </label>
           <input
             id="title"
-            className="input"
-            placeholder="My Favorite Podcast"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            name="title"
+            value={form.title}
+            onChange={handleChange}
+            placeholder="The Daily"
             required
-          />
-        </div>
-        <div>
-          <label htmlFor="description" className="label">Description</label>
-          <textarea
-            id="description"
-            className="input resize-none"
-            rows={3}
-            placeholder="A short description…"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="url" className="label">URL</label>
-          <input
-            id="url"
             className="input"
-            type="url"
-            placeholder="https://example.com/podcast"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
           />
         </div>
 
-        <div className="flex gap-3">
-          <button type="submit" disabled={busy} className="btn-primary">
-            {editing ? "Save changes" : "Add podcast"}
+        <div>
+          <label htmlFor="theme" className="label">
+            Theme
+          </label>
+          <select
+            id="theme"
+            name="theme"
+            value={form.theme}
+            onChange={handleChange}
+            className="input"
+          >
+            <option value="">Pick a theme…</option>
+            {THEMES.map((t) => (
+              <option key={t} value={t}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="description" className="label">
+            Description
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            value={form.description}
+            onChange={handleChange}
+            placeholder="What's this podcast about?"
+            rows={3}
+            className="input resize-none"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="url" className="label">
+            Link
+          </label>
+          <input
+            id="url"
+            name="url"
+            value={form.url}
+            onChange={handleChange}
+            placeholder="https://..."
+            className="input"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 pt-1">
+          <button type="submit" disabled={saving} className="btn-primary">
+            {saving
+              ? "Saving…"
+              : editingId
+                ? "Save changes"
+                : "Add podcast"}
           </button>
-          {editing && (
-            <button type="button" onClick={resetForm} className="btn-ghost">
+          {editingId && (
+            <button type="button" onClick={cancelEdit} className="btn-ghost">
               Cancel
             </button>
           )}
         </div>
       </form>
 
-      {/* ---- Error ---- */}
-      {error && (
-        <div className="rounded-lg border border-red-300/30 bg-red-500/15 px-4 py-3 text-sm text-red-100">
-          {error}
+      {/* Podcast list */}
+      <div>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-base font-bold">
+            All podcasts
+            <span
+              className="ml-2 text-sm font-normal"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {filtered.length}
+            </span>
+          </h2>
+
+          {usedThemes.length > 0 && (
+            <select
+              value={filterTheme}
+              onChange={(e) => setFilterTheme(e.target.value)}
+              className="input text-xs"
+              style={{ width: "auto", minWidth: 130 }}
+            >
+              <option value="">All themes</option>
+              {usedThemes.sort().map((t) => (
+                <option key={t} value={t}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
-      )}
 
-      {/* ---- List ---- */}
-      <section>
-        <h2 className="mb-4 text-lg font-semibold">
-          All podcasts{" "}
-          <span className="text-sm font-normal text-white/60">({podcasts.length})</span>
-        </h2>
-
-        {loading && <p className="text-sm text-white/60">Loading…</p>}
-
-        {!loading && podcasts.length === 0 && (
-          <p className="text-sm text-white/60">No podcasts yet. Add one above.</p>
+        {loading && (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Loading…
+          </p>
         )}
 
-        <ul className="space-y-3">
-          {podcasts.map((p) => (
-            <li key={p.id} className="card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {!loading && filtered.length === 0 && (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            {filterTheme ? "No podcasts with this theme." : "No podcasts yet."}
+          </p>
+        )}
+
+        <ul
+          className="divide-y"
+          style={{ borderColor: "var(--surface-border)" }}
+        >
+          {filtered.map((p) => (
+            <li
+              key={p.id}
+              className="flex items-start justify-between gap-4 py-4"
+              style={{ borderColor: "var(--surface-border)" }}
+            >
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{p.title}</p>
-                {p.description && (
-                  <p className="mt-0.5 truncate text-sm text-white/70">{p.description}</p>
-                )}
-                {p.url && (
-                  <a
-                    href={p.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-0.5 block truncate text-xs text-blue-300 underline underline-offset-2"
+                <p className="text-sm font-semibold">{p.title}</p>
+                {p.theme && (
+                  <span
+                    className="mt-1 inline-block rounded-full px-2 py-0.5 text-xs"
+                    style={{
+                      background: "rgba(196, 161, 255, 0.1)",
+                      color: "var(--accent)",
+                    }}
                   >
-                    {p.url}
-                  </a>
+                    {p.theme}
+                  </span>
+                )}
+                {p.description && (
+                  <p
+                    className="mt-1 text-xs line-clamp-2"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {p.description}
+                  </p>
                 )}
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="flex shrink-0 gap-1.5">
                 <button
-                  type="button"
                   onClick={() => startEdit(p)}
                   className="btn-ghost text-xs"
+                  style={{ padding: "4px 10px" }}
                 >
                   Edit
                 </button>
                 <button
-                  type="button"
                   onClick={() => handleDelete(p.id)}
-                  disabled={busy}
                   className="btn-danger text-xs"
+                  style={{ padding: "4px 10px" }}
                 >
                   Delete
                 </button>
@@ -238,7 +337,17 @@ export default function AdminPage() {
             </li>
           ))}
         </ul>
-      </section>
+      </div>
+
+      <div className="text-center">
+        <Link
+          href="/"
+          className="text-sm font-medium"
+          style={{ color: "var(--accent)" }}
+        >
+          Back to the wheel
+        </Link>
+      </div>
     </div>
   );
 }

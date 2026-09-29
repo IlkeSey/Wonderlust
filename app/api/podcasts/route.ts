@@ -52,6 +52,7 @@ export async function POST(request: Request) {
       title,
       description: asTrimmedString(body.description),
       url: asTrimmedString(body.url),
+      theme: asTrimmedString(body.theme),
     })
     .select()
     .single();
@@ -74,6 +75,7 @@ export async function PUT(request: Request) {
   }
   if ("description" in body) updates.description = asTrimmedString(body.description);
   if ("url" in body) updates.url = asTrimmedString(body.url);
+  if ("theme" in body) updates.theme = asTrimmedString(body.theme);
 
   if (Object.keys(updates).length === 0) return badRequest("Nothing to update.");
 
